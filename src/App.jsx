@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { IoMdSend, IoMdTrash, IoMdMoon, IoMdSunny } from "react-icons/io";
 
+// Environment variables
 const translatorToken = import.meta.env.VITE_TRANSLATOR_TOKEN;
 const detectLanguageToken = import.meta.env.VITE_LANGUAGE_TOKEN;
 const summarizerToken = import.meta.env.VITE_SUMMARIZER_TOKEN;
@@ -9,11 +10,9 @@ const Translator = () => {
   const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [detectedLanguage, setDetectedLanguage] = useState('en');
-  const [targetLanguage, setTargetLanguage] = useState('pt');
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
-  const [selectedTranslateIndex, setSelectedTranslateIndex] = useState(null);
+  const [detectedLanguage, setDetectedLanguage] = useState('en'); // Default English
+  const [targetLanguage, setTargetLanguage] = useState('pt'); // Default Portuguese
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light'); // Default is 'light'
 
   const languages = [
     { code: 'pt', label: 'Portuguese' },
@@ -24,70 +23,96 @@ const Translator = () => {
     { code: 'ja', label: 'Japanese' },
   ];
 
+  // Apply theme on load
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
+
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const handleTranslate = async (index) => {
-    setSelectedTranslateIndex(index);
-    setShowLanguageSelector(true);
-  };
+  useEffect(() => {
+    const testLanguageDetection = async () => {
+      try {
+        const languageDetector = await self.ai.languageDetector.create({
+          token: detectLanguageToken,
+        });
 
-  const handleLanguageSelect = async (languageCode) => {
-    const index = selectedTranslateIndex;
+        if (!languageDetector) throw new Error('Language Detector instance was not created.');
+      } catch (error) {
+        console.error('Language detection test failed:', error);
+      }
+    };
 
+    testLanguageDetection();
+  }, []);
+
+  const handleTranslate = async () => {
     if ('ai' in self && 'translator' in self.ai) {
       try {
         setLoading(true);
-
         const translator = await self.ai.translator.create({
-          sourceLanguage: 'en',
-          targetLanguage: languageCode,
+          sourceLanguage: 'en', // Default is English
+          targetLanguage: targetLanguage, // Default is Portuguese
           token: translatorToken,
         });
 
-        const translatedText = await translator.translate(messages[index].text);
+        const translatedText = await translator.translate(text);
 
-        setMessages((prevMessages) => {
-          const updatedMessages = [...prevMessages];
-          updatedMessages[index] = { 
-            ...updatedMessages[index], 
-            translatedText,
-            targetLanguage: languageCode,
-          };
-          return updatedMessages;
-        });
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          { text, translatedText, detectedLanguage: targetLanguage },
+        ]);
+        setText('');
       } catch (error) {
         console.error('Error during translation:', error);
-        setMessages((prevMessages) => {
-          const updatedMessages = [...prevMessages];
-          updatedMessages[index] = { 
-            ...updatedMessages[index], 
-            translatedText: 'Translation Error' 
-          };
-          return updatedMessages;
-        });
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          { text, translatedText: 'Translation Error', detectedLanguage: 'Error' },
+        ]);
       } finally {
         setLoading(false);
-        setShowLanguageSelector(false);
       }
     } else {
       console.log('Translator API is not available.');
     }
   };
 
-  const handleSubmit = () => {
-    if (text.trim()) {
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        { text, translatedText: '', detectedLanguage: detectedLanguage }
-      ]);
-      setText('');
+  const handleSummarize = async () => {
+    if ('ai' in self && 'summarizer' in self.ai) {
+      try {
+        setLoading(true);
+
+        const summarizer = await self.ai.summarizer.create({
+          language: 'en',
+          token: summarizerToken,
+        });
+
+        if (!summarizer) {
+          throw new Error('Summarizer session was not created.');
+        }
+
+        const summarizedText = await summarizer.summarize(text);
+
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          { text, summarizedText, detectedLanguage: 'en' },
+        ]);
+        setText('');
+      } catch (error) {
+        console.error('Error during summarization:', error);
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          { text, summarizedText: 'Summarization Error', detectedLanguage: 'Error' },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      console.log('Summarizer API is not available.');
     }
   };
 
@@ -115,22 +140,8 @@ const Translator = () => {
             <p className="text-lg">
               {msg.text} <span className="text-sm text-black dark:text-white">({msg.detectedLanguage})</span>
             </p>
-            {msg.translatedText && (
-              <p className="text-black dark:text-white">
-                ⭐ {msg.translatedText} 
-                <span className="text-sm text-black dark:text-white"> ({msg.targetLanguage})</span>
-              </p>
-            )}
-
-            <div className="absolute bottom-4 right-4">
-              <button
-                className="text-blue-500"
-                onClick={() => handleTranslate(index)}
-              >
-                Translate
-              </button>
-            </div>
-
+            {msg.translatedText && <p className="text-black dark:text-white">⭐ {msg.translatedText}</p>}
+            {msg.summarizedText && <p className="text-black dark:text-white">📄 {msg.summarizedText}</p>}
             <IoMdTrash
               onClick={() => handleDeleteMessage(index)}
               className="absolute top-2 right-2 text-red-500 cursor-pointer"
@@ -139,41 +150,37 @@ const Translator = () => {
         ))}
       </div>
 
-      {showLanguageSelector && (
-        <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 p-4 rounded shadow-lg z-50">
-          <h2 className="text-lg font-bold mb-2">Select Language</h2>
-          <ul className="space-y-2">
-            {languages.map((lang) => (
-              <li key={lang.code}>
-                <button
-                  onClick={() => handleLanguageSelect(lang.code)}
-                  className="text-blue-500 hover:underline focus:outline-none"
-                >
-                  {lang.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="flex items-center mt-4 relative">
+      <div className="flex items-center mt-4">
         <textarea
           className="flex-1 p-2 border rounded dark:bg-gray-600 dark:text-white"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Enter text  or summarize should be more than 150"
+          placeholder="Enter text to translate or summarize"
         />
 
-        <IoMdSend
-          onClick={handleSubmit}
-          className="absolute right-4 top-2 text-2xl cursor-pointer"
+        <select
+          className="ml-2 p-2 border rounded dark:bg-gray-600 dark:text-white"
+          value={targetLanguage}
+          onChange={(e) => setTargetLanguage(e.target.value)}
+        >
+          <option value="" disabled>Select Language</option>
+          {languages.map((lang) => (
+            <option key={lang.code} value={lang.code}>{lang.label}</option>
+          ))}
+        </select>
+
+        <button
+          className="bg-purple-400 text-white px-4 py-2 rounded-lg flex items-center ml-2"
+          onClick={handleTranslate}
           disabled={loading || !text.trim()}
-        />
+        >
+          {loading ? 'Translating...' : <IoMdSend className="ml-2 text-2xl" />}
+        </button>
 
         {text.length > 150 && (
           <button
             className="bg-purple-500 text-white px-4 py-2 rounded-lg ml-2"
+            onClick={handleSummarize}
             disabled={loading}
           >
             {loading ? 'Summarizing...' : 'Summarize'}
