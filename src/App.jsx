@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IoMdSend } from "react-icons/io";
 
-// Environment variables
 const translatorToken = import.meta.env.VITE_TRANSLATOR_TOKEN;
 const detectLanguageToken = import.meta.env.VITE_LANGUAGE_TOKEN;
 const summarizerToken = import.meta.env.VITE_SUMMARIZER_TOKEN;
@@ -12,7 +11,7 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [detectedLanguage, setDetectedLanguage] = useState('en');
   const [targetLanguage, setTargetLanguage] = useState('pt');
-  const [view, setView] = useState('text'); // State to toggle between Text and Summarize
+  const [view, setView] = useState(localStorage.getItem('view') || 'text'); // Persist view
   const [error, setError] = useState('');
 
   const languages = [
@@ -24,6 +23,10 @@ const App = () => {
     { code: 'hi', label: 'Hindi' },
     { code: 'ja', label: 'Japanese' },
   ];
+
+  useEffect(() => {
+    localStorage.setItem('view', view);
+  }, [view]); // Update localStorage when view changes
 
   const handleTranslate = async (text, targetLanguage) => {
     if ('ai' in self && 'translator' in self.ai) {
@@ -86,14 +89,13 @@ const App = () => {
         <p className="text-lg">AI-Powered Text Processing Interface</p>
       </header>
 
-      {/* Toggle Buttons */}
       <div className="flex justify-center gap-4 p-4">
-        <button
-          className={`px-6 py-3 text-lg font-bold rounded-lg ${view === 'text' ? 'bg-blue-500 text-white' : 'bg-gray-300'}`}
+        <button 
+          className={`px-6 py-3 text-lg font-bold rounded-lg ${view === 'text' ? 'bg-blue-500 text-white' : 'bg-gray-300'}`} 
           onClick={() => setView('text')}
         >TEXT</button>
-        <button
-          className={`px-6 py-3 text-lg font-bold rounded-lg ${view === 'summarize' ? 'bg-blue-500 text-white' : 'bg-gray-300'}`}
+        <button 
+          className={`px-6 py-3 text-lg font-bold rounded-lg ${view === 'summarize' ? 'bg-blue-500 text-white' : 'bg-gray-300'}`} 
           onClick={() => setView('summarize')}
         >SUMMARIZE</button>
       </div>
@@ -104,23 +106,6 @@ const App = () => {
             <p className="text-lg">{msg.text} <span className="text-sm text-black">({msg.detectedLanguage})</span></p>
             {msg.translatedText && <p className="text-black">⭐ {msg.translatedText}</p>}
             {msg.summarizedText && <p className="text-black">📄 {msg.summarizedText}</p>}
-
-            {view === 'text' && (
-              <div className="relative mt-2 w-40">
-                <select
-                  className="appearance-none w-full p-2 text-sm bg-gradient-to-r from-purple-500 to-blue-500 text-black font-semibold rounded-lg shadow-md border-none outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer transition-all duration-300"
-                  onChange={(e) => setTargetLanguage(e.target.value)} // Update the target language in state
-                >
-                  <option value="" disabled>Select Language</option>
-                  {languages.map((lang) => (
-                    <option key={lang.code} value={lang.code}>{lang.label}</option>
-                  ))}
-                </select>
-                <div className="absolute top-1/2 right-3 transform -translate-y-1/2 pointer-events-none">
-                  ⬇️
-                </div>
-              </div>
-            )}
           </div>
         ))}
         {error && <p className="text-red-500 font-bold">{error}</p>}
@@ -129,19 +114,36 @@ const App = () => {
       <div className="flex items-center p-4">
         <div className="relative flex-1">
           <textarea
-            className="w-full p-3 pr-12 border rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+            className="w-full p-3 pr-16 border rounded-lg text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={view === 'text' ? "Enter text to translate" : "Enter text to summarize"}
+            placeholder={view === 'text' ? 'Enter text to translate' : 'Enter text to summarize'}
           />
+
           {view === 'text' && (
-            <button
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-purple-500 text-white p-2 rounded-lg hover:bg-purple-600 transition-all duration-300"
-              onClick={() => handleTranslate(text, targetLanguage)} // Use the selected targetLanguage
-              disabled={loading || !text.trim()}
-            >
-              <IoMdSend className="text-3xl" />
-            </button>
+            <>
+              <div className="relative w-full md:w-40 mt-2 md:mt-0 md:absolute md:right-14 md:top-1/2 md:-translate-y-1/2">
+                <select
+                  className="w-full p-2 text-sm bg-gradient-to-r from-purple-500 to-blue-500 text-black font-semibold rounded-lg shadow-md border-none outline-none focus:ring-2 focus:ring-purple-400 cursor-pointer transition-all duration-300 ml-[-20px]"
+                  onChange={(e) => setTargetLanguage(e.target.value)}
+                >
+                  <option value="" disabled>Select Language</option>
+                  {languages.map((lang) => (
+                    <option key={lang.code} value={lang.code}>{lang.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                className="absolute right-1 sm:right-3 top-1/2 transform -translate-y-1/2 
+                  bg-purple-500 text-white p-2 sm:p-3 rounded-lg hover:bg-purple-600 
+                  transition-all duration-300 flex items-center justify-center"
+                onClick={() => handleTranslate(text, targetLanguage)}
+                disabled={loading || !text.trim()}
+              >
+                <IoMdSend className="text-xl sm:text-3xl" />
+              </button>
+            </>
           )}
         </div>
 
